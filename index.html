@@ -344,6 +344,66 @@
                 padding: 0.5rem;
             }
         }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--input-border);
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 0.75rem 0;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            /* Important for scroll */
+            height: 100%;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            background: white;
+            flex: 1;
+        }
     </style>
 </head>
 
@@ -369,36 +429,47 @@
             </button>
         </header>
 
-        <div class="form-group flex-column-grow" id="inputSection">
-            <label for="scriptInput">Ad Script</label>
-            <div class="script-wrapper">
-                <textarea id="scriptInput" class="code-input" placeholder="<script>var s={vast:[...], ...}</script>"
-                    spellcheck="false"></textarea>
-            </div>
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="injector">Injector</button>
+            <button class="tab-btn" data-tab="testing">Testing</button>
         </div>
 
-        <div class="form-group">
-            <label for="floorInput">Floor Values (comma separated)</label>
-            <input type="text" id="floorInput" placeholder="e.g. 3, 2.25, 1.75" autocomplete="off">
-        </div>
-
-        <button id="generateBtn" class="btn-primary" disabled>Generate Updated Script</button>
-
-        <div class="output-container" id="outputSection">
-            <div class="output-header">
-                <label for="scriptOutput" style="margin:0">Output Script</label>
-                <div style="display:flex; align-items: center;">
-                    <span class="feedback" id="copyFeedback">Copied!</span>
-                    <button class="copy-btn" id="copyBtn">
-                        <svg class="icon" viewBox="0 0 24 24">
-                            <path
-                                d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5 19 5ZM19 21H8V7H19V21Z" />
-                        </svg>
-                        Copy
-                    </button>
+        <div id="injector" class="tab-content active">
+            <div class="form-group flex-column-grow" id="inputSection">
+                <label for="scriptInput">Ad Script</label>
+                <div class="script-wrapper">
+                    <textarea id="scriptInput" class="code-input" placeholder="<script>var s={vast:[...], ...}</script>"
+                        spellcheck="false"></textarea>
                 </div>
             </div>
-            <textarea id="scriptOutput" class="code-input" readonly spellcheck="false"></textarea>
+
+            <div class="form-group">
+                <label for="floorInput">Floor Values (comma separated)</label>
+                <input type="text" id="floorInput" placeholder="e.g. 3, 2.25, 1.75" autocomplete="off">
+            </div>
+
+            <button id="generateBtn" class="btn-primary" disabled>Generate Updated Script</button>
+
+            <div class="output-container" id="outputSection">
+                <div class="output-header">
+                    <label for="scriptOutput" style="margin:0">Output Script</label>
+                    <div style="display:flex; align-items: center;">
+                        <span class="feedback" id="copyFeedback">Copied!</span>
+                        <button class="copy-btn" id="copyBtn">
+                            <svg class="icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5 19 5ZM19 21H8V7H19V21Z" />
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <textarea id="scriptOutput" class="code-input" readonly spellcheck="false"></textarea>
+            </div>
+        </div>
+
+        <div id="testing" class="tab-content">
+            <iframe src="https://test-a-tag.com/" id="iframe" frameborder="0"></iframe>
         </div>
     </div>
 
@@ -436,6 +507,28 @@
             const currentTheme = document.documentElement.getAttribute('data-theme');
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
             setTheme(newTheme);
+        });
+
+        // Tabs Logic
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetTab = btn.getAttribute('data-tab');
+
+                // Update Buttons
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Update Content
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === targetTab) {
+                        content.classList.add('active');
+                    }
+                });
+            });
         });
 
         // Validation
