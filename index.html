@@ -404,6 +404,72 @@
             background: white;
             flex: 1;
         }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            background: white;
+            flex: 1;
+        }
+
+        .secondary-btn {
+            background-color: transparent;
+            border: 1px solid var(--input-border);
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .secondary-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background-color: var(--input-bg);
+        }
+
+        .script-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .stat-item {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            word-break: break-all;
+        }
+
+
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 
@@ -440,6 +506,16 @@
                 <div class="script-wrapper">
                     <textarea id="scriptInput" class="code-input" placeholder="<script>var s={vast:[...], ...}</script>"
                         spellcheck="false"></textarea>
+                </div>
+                <div class="script-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Total VAST URLs:</span>
+                        <span id="vastCount" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item" style="flex: 1;">
+                        <span class="stat-label">Detected Floor Values:</span>
+                        <span id="parsedValues" class="stat-value">N/A</span>
+                    </div>
                 </div>
             </div>
 
@@ -485,6 +561,8 @@
         const themeToggleBtn = document.getElementById('themeToggle');
         const sunIcon = themeToggleBtn.querySelector('.sun-icon');
         const moonIcon = themeToggleBtn.querySelector('.moon-icon');
+        const parsedValuesEl = document.getElementById('parsedValues');
+        const vastCountEl = document.getElementById('vastCount');
 
         // Theme Logic
         function setTheme(theme) {
@@ -607,12 +685,24 @@
             const updatedVastArray = vastArray.map((item, index) => {
                 let url = item.ad_url;
                 const floor = floors[index];
-                const param = `upr%3D${floor}`;
 
-                if (url.includes("cust_params=")) {
-                    url += `%26${param}`;
+                // Regex checks for existing upr parameter
+                // 1. Encoded: upr%3DVALUE (ends at %26 or end of string)
+                // 2. Unencoded: upr=VALUE (ends at & or end of string)
+                const encodedRegex = /(upr%3D)(.*?)(?=%26|$)/;
+                const unencodedRegex = /(upr=)(.*?)(?=&|$)/;
+
+                if (encodedRegex.test(url)) {
+                    url = url.replace(encodedRegex, `$1${floor}`);
+                } else if (unencodedRegex.test(url)) {
+                    url = url.replace(unencodedRegex, `$1${floor}`);
                 } else {
-                    url += `&cust_params=${param}`;
+                    const param = `upr%3D${floor}`;
+                    if (url.includes("cust_params=")) {
+                        url += `%26${param}`;
+                    } else {
+                        url += `&cust_params=${param}`;
+                    }
                 }
                 return { ...item, ad_url: url };
             });
@@ -641,6 +731,103 @@
             el.classList.add('shake');
             el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
         }
+
+        // Parsing Logic
+        function extractVastArrayFromScript(scriptInput) {
+            const vastStartIndex = scriptInput.indexOf("vast:[");
+            if (vastStartIndex === -1) return null;
+
+            const arrayStartIndex = vastStartIndex + 5;
+            let stack = 0;
+            let arrayEndIndex = -1;
+            let foundStart = false;
+
+            for (let i = arrayStartIndex; i < scriptInput.length; i++) {
+                const char = scriptInput[i];
+                if (char === '[') { stack++; foundStart = true; }
+                else if (char === ']') {
+                    stack--;
+                    if (foundStart && stack === 0) {
+                        arrayEndIndex = i + 1;
+                        break;
+                    }
+                }
+            }
+
+            if (arrayEndIndex === -1) return null;
+
+            const vastArrayString = scriptInput.substring(arrayStartIndex, arrayEndIndex);
+
+            // Allow returning the raw string and indices for replacement logic
+            return {
+                start: arrayStartIndex,
+                end: arrayEndIndex,
+                content: vastArrayString
+            };
+        }
+
+        function parseVastArrayString(vastArrayString) {
+            try {
+                const fixedJsonString = vastArrayString
+                    .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+                    .replace(/'/g, '"');
+                return JSON.parse(fixedJsonString);
+            } catch (e) {
+                try {
+                    return JSON.parse(vastArrayString);
+                } catch (err2) {
+                    return null;
+                }
+            }
+        }
+
+        function updateDetectedFloors() {
+            const scriptInput = scriptInputEl.value;
+
+            if (!scriptInput.trim()) {
+                parsedValuesEl.textContent = "N/A";
+                vastCountEl.textContent = "0";
+                return;
+            }
+
+            const extraction = extractVastArrayFromScript(scriptInput);
+            if (!extraction) {
+                parsedValuesEl.textContent = "N/A";
+                vastCountEl.textContent = "0";
+                return;
+            }
+
+            const vastArray = parseVastArrayString(extraction.content);
+            if (!vastArray) {
+                parsedValuesEl.textContent = "N/A";
+                vastCountEl.textContent = "0";
+                return;
+            }
+
+            // Update count
+            vastCountEl.textContent = vastArray.length;
+
+            const extractedFloors = vastArray.map(item => {
+                const url = item.ad_url || "";
+                // Match upr=VALUE or upr%3DVALUE
+                // This regex captures until an ampersand (&), encoded ampersand (%26), or end of string
+                const match = url.match(/upr(?:=|%3D)(.*?)(?:&|%26|$)/);
+                return (match && match[1]) ? match[1] : "N/A";
+            });
+
+            parsedValuesEl.textContent = extractedFloors.join(', ');
+        }
+
+        // Add event listener for reactive parsing
+        scriptInputEl.addEventListener('input', updateDetectedFloors);
+
+        // Initial call in case of browser autofill or refresh value retention
+        updateDetectedFloors();
+
+        // Update Generate logic to use the new extraction function to avoid code duplication is ideal,
+        // but for now we'll just keep the generate logic as is to minimize regression risk unless we refactor fully.
+        // Actually, the generate logic is quite coupled with replacement.
+        // Let's leave Generate alone for now unless I want to refactor it too.
     </script>
 
 </body>
